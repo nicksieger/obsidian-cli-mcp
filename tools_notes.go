@@ -42,6 +42,21 @@ func registerNoteTools(s *server.MCPServer) {
 		vaultOpt(),
 	), noteCreateHandler)
 
+	s.AddTool(mcp.NewTool("note_update",
+		mcp.WithDescription("Replace the full content of an existing Obsidian note. Provide name or path (not both)."),
+		mcp.WithString("name",
+			mcp.Description("Note name (partial match, like a wikilink)"),
+		),
+		mcp.WithString("path",
+			mcp.Description("Exact note path (e.g. folder/note.md)"),
+		),
+		mcp.WithString("content",
+			mcp.Required(),
+			mcp.Description("New content to write; use \\n for newlines, \\t for tabs"),
+		),
+		vaultOpt(),
+	), noteUpdateHandler)
+
 	s.AddTool(mcp.NewTool("note_append",
 		mcp.WithDescription("Append content to an existing Obsidian note"),
 		mcp.WithString("file",
@@ -160,6 +175,28 @@ func noteCreateHandler(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToo
 	}
 	if req.GetBool("open", false) {
 		args = append(args, "open")
+	}
+
+	out, err := runObsidian(vault, "create", args...)
+	if err != nil {
+		return toolError(err.Error())
+	}
+	return toolOK(out)
+}
+
+func noteUpdateHandler(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	vault := vaultFromReq(req)
+	content, err := req.RequireString("content")
+	if err != nil {
+		return toolError(err.Error())
+	}
+
+	args := []string{"content=" + content, "overwrite"}
+	if v := req.GetString("name", ""); v != "" {
+		args = append(args, "name="+v)
+	}
+	if v := req.GetString("path", ""); v != "" {
+		args = append(args, "path="+v)
 	}
 
 	out, err := runObsidian(vault, "create", args...)
